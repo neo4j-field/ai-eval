@@ -1,0 +1,9 @@
+{
+    "name": "Test KG",
+    "description": "A test knowledge graph",
+    "neo4j_uri": "",
+    "neo4j_user": "neo4j",
+    "neo4j_password": "",
+    "neo4j_database": "neo4j"
+}
+

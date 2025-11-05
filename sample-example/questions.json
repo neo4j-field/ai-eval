@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "name": "RAG vs GraphRAG Evaluation Dataset",
+    "description": "Custom dataset designed to highlight differences between RAG and GraphRAG approaches",
+    "total_questions": 3
+  },
+  "questions": [
+    {
+      "id": "q001",
+      "question": "What is TechCorp's annual revenue as of 2024?",
+      "ground_truth": "$4.2 billion"    
+    },
+    {
+      "id": "q002",
+      "question": "Who founded TechCorp Inc.?",
+      "ground_truth": "Sarah Chen and Michael Rodriguez founded TechCorp Inc"
+    },
+    {
+      "id": "q003",
+      "question": "What is TechCorp's ticker symbol?",
+      "ground_truth": "TECH on NASDAQ"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+    "retrieverLLM": {
+        "model": "gpt-4o"
+    },
+    "evaluatorLLM": {
+        "model": "gpt-4o"
+    },
+    "retrievers": [
+        {
+            "name": "vectorRetriever k=1",
+            "type": "vectorRetriever",
+            "params": {
+                "index_name": "vector_index",
+                "return_properties:": ["text"]
+            },
+            "retriever_config": {
+                "top_k": 1
+            }
+        },
+        {
+            "name": "vectorRetriever k=5",
+            "type": "vectorRetriever",
+            "params": {
+                "index_name": "vector_index",
+                "return_properties:": ["text"]
+            },
+            "retriever_config": {
+                "top_k": 5
+            }
+        }
+    ],
+    "metrics": [
+        "Faithfulness", 
+        "AnswerAccuracy", 
+        "ContextEntityRecall",
+        "RougeScore",
+        "SemanticSimilarity"
+    ]
+}

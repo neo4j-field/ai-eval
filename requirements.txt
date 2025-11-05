@@ -1,0 +1,16 @@
+langchain==0.3.27
+langchain-community==0.3.27
+langchain-core==0.3.74
+langchain-openai==0.3.29
+langchain-text-splitters==0.3.9
+neo4j==5.28.1
+neo4j-graphrag==1.9.0
+openai==1.97.1
+pandas==2.3.1
+pillow==11.3.0
+pydantic==2.11.7
+pydantic-settings==2.10.1
+pydantic_core==2.33.2
+python-dotenv==1.1.1
+ragas[all]
+pytest

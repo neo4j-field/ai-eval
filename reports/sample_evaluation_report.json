@@ -1,0 +1,195 @@
+{
+    "metadata": {
+        "date_run": "2025-09-08",
+        "gmt_time": "20:30:22",
+        "start_time": "16:30:22",
+        "total_duration": "40s",
+        "kg_config": {
+            "neo4j_uri": "neo4j://localhost:7687",
+            "neo4j_user": "neo4j",
+            "neo4j_password": "***",
+            "neo4j_database": "airagas",
+            "name": "Test KG",
+            "description": "A test knowledge graph"
+        },
+        "config": {
+            "retrieverLLM": {
+                "model": "gpt-4o"
+            },
+            "evaluatorLLM": {
+                "model": "gpt-4o"
+            },
+            "retrievers": [
+                {
+                    "type": "vectorRetriever",
+                    "params": {
+                        "index_name": "vector_index",
+                        "return_properties:": [
+                            "text"
+                        ]
+                    }
+                },
+                {
+                    "type": "vectorCypherRetriever",
+                    "params": {
+                        "index_name": "vector_index",
+                        "retrieval_query": "RETURN node as startNode, null as relationship, null as endNode\nUNION\nOPTIONAL MATCH (e:`__Entity__`)-[:FROM_CHUNK]->(node)\nWITH [(e)-[r]-(other:__Entity__) | \n    CASE WHEN startNode(r) = e THEN [e,type(r),other] ELSE [other,type(r),e] END\n] as contextRels\nUNWIND contextRels as context\nWITH context[0] as startNode, context[1] as relationship, context[2] as endNode\nWHERE startNode IS NOT NULL\n    AND relationship IS NOT NULL\n    AND endNode IS NOT NULL\n    RETURN distinct startNode, relationship, endNode"
+                    }
+                }
+            ],
+            "metrics": [
+                "Faithfulness",
+                "AnswerAccuracy",
+                "ContextEntityRecall",
+                "RougeScore",
+                "SemanticSimilarity"
+            ]
+        }
+    },
+    "report": [
+        {
+            "question": "What is TechCorp's annual revenue as of 2024?",
+            "reference": "$4.2 billion",
+            "retrievers": [
+                {
+                    "name": "vectorRetriever",
+                    "answers": [
+                        {
+                            "response": "TechCorp's annual revenue as of 2024 is $4.2 billion.",
+                            "scores": {
+                                "faithfulness": 0.0,
+                                "nv_accuracy": 1.0,
+                                "context_entity_recall": 1.0,
+                                "rouge_score(mode=fmeasure)": 0.4286,
+                                "semantic_similarity": 0.8587
+                            },
+                            "rag_start_time": "16:30:22",
+                            "rag_duration": "01s",
+                            "rag_duration_sec": 1.2690439224243164,
+                            "eval_start_time": "16:30:25",
+                            "eval_duration": "05s",
+                            "eval_duration_sec": 5.297021865844727
+                        }
+                    ]
+                },
+                {
+                    "name": "vectorCypherRetriever",
+                    "answers": [
+                        {
+                            "response": "TechCorp's annual revenue as of 2024 is $4.2 billion.",
+                            "scores": {
+                                "faithfulness": 0.0,
+                                "nv_accuracy": 1.0,
+                                "context_entity_recall": 1.0,
+                                "rouge_score(mode=fmeasure)": 0.4286,
+                                "semantic_similarity": 0.8587
+                            },
+                            "rag_start_time": "16:30:23",
+                            "rag_duration": "01s",
+                            "rag_duration_sec": 1.788285255432129,
+                            "eval_start_time": "16:30:30",
+                            "eval_duration": "04s",
+                            "eval_duration_sec": 4.395055294036865
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "question": "Who founded TechCorp Inc.?",
+            "reference": "Sarah Chen and Michael Rodriguez founded TechCorp Inc",
+            "retrievers": [
+                {
+                    "name": "vectorRetriever",
+                    "answers": [
+                        {
+                            "response": "TechCorp Inc. was founded by Sarah Chen and Michael Rodriguez.",
+                            "scores": {
+                                "faithfulness": 1.0,
+                                "nv_accuracy": 1.0,
+                                "context_entity_recall": 1.0,
+                                "rouge_score(mode=fmeasure)": 0.5556,
+                                "semantic_similarity": 0.9519
+                            },
+                            "rag_start_time": "16:30:35",
+                            "rag_duration": "00s",
+                            "rag_duration_sec": 0.9772999286651611,
+                            "eval_start_time": "16:30:38",
+                            "eval_duration": "05s",
+                            "eval_duration_sec": 5.203194856643677
+                        }
+                    ]
+                },
+                {
+                    "name": "vectorCypherRetriever",
+                    "answers": [
+                        {
+                            "response": "TechCorp Inc. was founded in 2010 by Sarah Chen and Michael Rodriguez.",
+                            "scores": {
+                                "faithfulness": 0.6667,
+                                "nv_accuracy": 1.0,
+                                "context_entity_recall": 1.0,
+                                "rouge_score(mode=fmeasure)": 0.5,
+                                "semantic_similarity": 0.9423
+                            },
+                            "rag_start_time": "16:30:36",
+                            "rag_duration": "02s",
+                            "rag_duration_sec": 2.617508888244629,
+                            "eval_start_time": "16:30:43",
+                            "eval_duration": "04s",
+                            "eval_duration_sec": 4.531324148178101
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "question": "What is TechCorp's ticker symbol?",
+            "reference": "TECH on NASDAQ",
+            "retrievers": [
+                {
+                    "name": "vectorRetriever",
+                    "answers": [
+                        {
+                            "response": "TechCorp's ticker symbol is TECH.",
+                            "scores": {
+                                "faithfulness": 0.0,
+                                "nv_accuracy": 0.5,
+                                "context_entity_recall": 1.0,
+                                "rouge_score(mode=fmeasure)": 0.2222,
+                                "semantic_similarity": 0.8967
+                            },
+                            "rag_start_time": "16:30:48",
+                            "rag_duration": "01s",
+                            "rag_duration_sec": 1.0828280448913574,
+                            "eval_start_time": "16:30:52",
+                            "eval_duration": "04s",
+                            "eval_duration_sec": 4.373255968093872
+                        }
+                    ]
+                },
+                {
+                    "name": "vectorCypherRetriever",
+                    "answers": [
+                        {
+                            "response": "TechCorp's ticker symbol is TECH, and it is listed on NASDAQ.",
+                            "scores": {
+                                "faithfulness": 0.0,
+                                "nv_accuracy": 1.0,
+                                "context_entity_recall": 1.0,
+                                "rouge_score(mode=fmeasure)": 0.4,
+                                "semantic_similarity": 0.9205
+                            },
+                            "rag_start_time": "16:30:49",
+                            "rag_duration": "03s",
+                            "rag_duration_sec": 3.262356996536255,
+                            "eval_start_time": "16:30:57",
+                            "eval_duration": "05s",
+                            "eval_duration_sec": 5.323467969894409
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
