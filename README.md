@@ -45,10 +45,11 @@ python ./src/main.py -q questions.json -k kg_config.json -t test_config.json -c 
 ```
 
 ## Confguration Notes
-Currently there is only two choices of retriever types:
+Currently these are the retriever types:
 
 - vectorRetriever
 - vectorCypherRetriever
+- text2CypherRetriever
 
 More types may be added in the future, or you can add types and contribute back to the codebase.
 
