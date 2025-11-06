@@ -1,10 +1,11 @@
 import json
 
 class Question:
-    def __init__(self, id, question, ground_truth):
+    def __init__(self, id, question, ground_truth, answers=None):
         self._id = id
         self._question = question
         self._ground_truth = ground_truth
+        self._answers = answers if answers is not None else []
 
     @property
     def id(self):
@@ -29,6 +30,14 @@ class Question:
     @ground_truth.setter
     def ground_truth(self, value):
         self._ground_truth = value
+
+    @property
+    def answers(self):
+        return self._answers
+
+    @answers.setter
+    def answers(self, value):
+        self._answers = value
 
 
 class Questions:
@@ -63,11 +72,22 @@ class Questions:
                 id=q["id"],
                 question=q["question"],
                 ground_truth=q["ground_truth"],
+                answers=q.get("answers", [])
             )
             questions.add_question(question)
         return questions
 
     def dump_to_json(self, json_filename):
-        data = {"questions": [vars(q) for q in self._questions.values()]}
+        data = {
+            "questions": [
+                {
+                    "id": q.id,
+                    "question": q.question,
+                    "ground_truth": q.ground_truth,
+                    "answers": q.answers
+                }
+                for q in self._questions.values()
+            ]
+        }
         with open(json_filename, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)

@@ -1,3 +1,6 @@
+import seaborn as sns
+import matplotlib.pyplot as plt
+import os
 from langchain_openai import OpenAIEmbeddings
 from ragas import evaluate
 from config_helper import get_retriever_config, get_metrics_from_config, get_evaluator_llm, get_retriever_llm, load_config_file
@@ -90,6 +93,72 @@ def transform_all_results_to_report(all_results, metadata):
         "report": list(question_map.values())
     }
 
+def generate_report_charts(results_json, output_report_path):
+    """
+    Generate bar charts from the report JSON dict and save them with output_report_path prefix and chart name suffix.
+    """
+    report_data = results_json
+
+    # Prepare data for metric averages per retriever
+    metric_scores = {}  # {metric: {retriever: [scores]}}
+    retriever_scores = {}  # {retriever: {metric: [scores]}}
+    for q in report_data["report"]:
+        for r in q["retrievers"]:
+            retriever = r["name"]
+            answer = r["answers"][0]
+            for metric, score in answer["scores"].items():
+                # Metric per retriever
+                metric_scores.setdefault(metric, {}).setdefault(retriever, []).append(score)
+                # Retriever per metric
+                retriever_scores.setdefault(retriever, {}).setdefault(metric, []).append(score)
+
+    # Prepare data for a grouped bar chart: metrics on x-axis, retrievers as groups
+    retrievers = sorted(retriever_scores.keys())
+    metrics = sorted(metric_scores.keys())
+    import pandas as pd
+    data = []
+    for metric in metrics:
+        for retr in retrievers:
+            scores = retriever_scores[retr].get(metric, [])
+            avg_score = sum(scores)/len(scores) if scores else 0
+            data.append({"Metric": metric, "Retriever": retr, "Average Score": avg_score})
+    df = pd.DataFrame(data)
+    # Plot grouped vertical bars: metrics on x-axis, retrievers as hue
+    plt.figure(figsize=(max(8, len(metrics)*1.5), 6))
+    sns.barplot(data=df, x="Metric", y="Average Score", hue="Retriever")
+    plt.title("Average Retriever Scores per Metric")
+    plt.xlabel("Metric")
+    plt.ylabel("Average Score")
+    plt.legend(title="Retriever", bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    chart_path = f"{os.path.splitext(output_report_path)[0]}_all_metrics_bar_chart.png"
+    plt.savefig(chart_path)
+    plt.close()
+
+def summarize_report_with_llm(report_json, retriever_llm):
+    """
+    Summarize the report using the retriever LLM and a system prompt. Returns the summary string.
+    """
+    system_prompt = (
+        "You are an expert summarizing the report. I have RAGAs retrievers metrics data. "
+        "Give me consise summary and the insights for the context data which helps me identify which retrievers are performing best."
+    )
+    # Compose the input for the LLM
+    user_content = json.dumps(report_json, indent=2)
+    prompt = f"{system_prompt}\n\nReport Data:\n{user_content}"
+    # Use retriever_llm to get summary (assume it has a .invoke or .predict method)
+    try:
+        if hasattr(retriever_llm, "invoke"):
+            summary = retriever_llm.invoke(prompt)
+        elif hasattr(retriever_llm, "predict"):
+            summary = retriever_llm.predict(prompt)
+        else:
+            summary = "[LLM summarization not supported for this retriever_llm type.]"
+    except Exception as e:
+        summary = f"[Error during LLM summarization: {e}]"
+    print(f"Report Summary: {summary}")
+    return summary.content
+
 class Evaluator:
     def __init__(self, questions, kg_config, config, output_report_path):
         self.evaluator_llm = get_evaluator_llm(config)
@@ -114,13 +183,8 @@ class Evaluator:
 
     @staticmethod
     def load_config_files(questions_json_path, kg_config_json_path, test_config_json_path):
-        print(f"Loading questions_json from: {questions_json_path}")
         questions = Questions.load_from_json(questions_json_path)
-
-        print(f"Loading kg_config from: {kg_config_json_path}")
         kg_config = KnowledgeGraphConfig.from_json(kg_config_json_path)
-
-        print(f"Loading test_config_json from: {test_config_json_path}")
         config = load_config_file(test_config_json_path)
         return questions, kg_config, config
 
@@ -172,27 +236,67 @@ class Evaluator:
 
             print(f"questionId = {question_id}")
             print(f"questionText = {question_text}")
+
             responses = []
+
+            # Evaluate provided answers (from sources)
+            for answer_obj in question.answers:
+                source_name = answer_obj.get("source", "ProvidedAnswer")
+                answer_text = answer_obj.get("answer", "")
+                print(f"Evaluating provided answer from source: {source_name}")
+
+                # No retriever logic, just use the provided answer
+                rag_start_time_epoch = time.time()
+                rag_start_time = datetime.fromtimestamp(rag_start_time_epoch).strftime("%H:%M:%S")
+                rag_duration_sec = 0
+                rag_duration = format_duration(rag_duration_sec)
+                context_length = len(answer_text)
+
+                response_dataset = Dataset.from_dict(
+                    {
+                        "user_input": [question_text],
+                        "reference": [ground_truth],
+                        "response": [answer_text],
+                        "contexts": [[ground_truth]]
+                    }
+                )
+                responses.append({
+                    "question_id": question_id,
+                    "question_text": question_text,
+                    "retriever_name": source_name,
+                    "context_length": context_length,
+                    "response_dataset": response_dataset,
+                    "rag_start_time": rag_start_time,
+                    "rag_duration": rag_duration,
+                    "rag_duration_sec": rag_duration_sec
+                })
+
+            # Evaluate retrievers as before (if needed)
             for retriever_name, rag in self.retrievers.items():
                 print(f"Running evaluation for retriever: {retriever_name}")
 
-                # 3. Capture rag_start_time
                 rag_start_time_epoch = time.time()
                 rag_start_time = datetime.fromtimestamp(rag_start_time_epoch).strftime("%H:%M:%S")
                 retriever_config = get_retriever_config(self.config, retriever_name)
-                # print(f"Using retriever config: {retriever_config}")
-                response = rag.search(query_text=question_text, return_context=True, retriever_config=retriever_config)                
-                # print(f"Response: {response}")
-                length = get_total_context_text_length(response.retriever_result)
-                print(f"Total context text length sent to LLM: {length} characters")
+                try:
+                    response = rag.search(query_text=question_text, return_context=True, retriever_config=retriever_config)
+                    answer_text = response.answer
+                    print(f"Response: {response.answer}")
+                    length = get_total_context_text_length(response.retriever_result)
+                    print(f"Total context text length sent to LLM: {length} characters")
+                except Exception as e:
+                    answer_text = f"Error occurred during RAG search: {str(e)}"
+                    length = 0  # No context available when there's an error
+                    print(f"RAG search failed: {answer_text}")
+
                 rag_duration_sec = time.time() - rag_start_time_epoch
                 rag_duration = format_duration(rag_duration_sec)
 
                 response_dataset = Dataset.from_dict(
                     {
-                        "user_input": [question_text], 
-                        "reference": [ground_truth], 
-                        "response": [response.answer], 
+                        "user_input": [question_text],
+                        "reference": [ground_truth],
+                        "response": [answer_text],
                         "contexts": [[ground_truth]]
                     }
                 )
@@ -216,10 +320,10 @@ class Evaluator:
                 eval_duration_sec = time.time() - eval_start_time_epoch
                 eval_duration = format_duration(eval_duration_sec)
                 all_results.append({
-                    "scores": scores, 
-                    "question_id": response_item["question_id"], 
+                    "scores": scores,
+                    "question_id": response_item["question_id"],
                     "question_text": response_item["question_text"],
-                    "retriever_name": response_item["retriever_name"], 
+                    "retriever_name": response_item["retriever_name"],
                     "test_data": item_dataset,
                     "rag_start_time": response_item["rag_start_time"],
                     "rag_duration": response_item["rag_duration"],
@@ -249,6 +353,19 @@ class Evaluator:
         }
 
         results_json = transform_all_results_to_report(all_results, metadata)
+
+        # Generate charts after saving report
+        generate_report_charts(results_json, self.output_report_path)
+
+        # Summarize report using retriever LLM
+
+        report_summary = summarize_report_with_llm(results_json, self.retriever_llm)
+        # If LLMResponse or other non-serializable, convert to string
+        if not isinstance(report_summary, str):
+            report_summary = str(report_summary)
+        results_json["report_summary"] = report_summary
+
+        # Save updated report with summary
         with open(self.output_report_path, "w") as f:
             f.write(json.dumps(results_json, indent=4))
 

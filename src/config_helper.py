@@ -1,7 +1,8 @@
 import json
 from neo4j_graphrag.generation import GraphRAG
 from neo4j_graphrag.llm import OpenAILLM
-from neo4j_graphrag.retrievers import VectorRetriever, VectorCypherRetriever
+from neo4j_graphrag.schema import get_schema
+from neo4j_graphrag.retrievers import VectorRetriever, VectorCypherRetriever, Text2CypherRetriever
 from ragas.llms import LangchainLLMWrapper
 from langchain_openai import ChatOpenAI
 from format_util import result_formatter
@@ -75,6 +76,17 @@ def get_retrievers(config, kg_config, neo4j_driver, llm, embedder, result_format
                 retrieval_query=params.get("retrieval_query", ""),
                 result_formatter=result_formatter
             )
+        elif retriever_type == "text2CypherRetriever":
+            examples = [
+                "USER INPUT: 'Which actors starred in the Matrix?' QUERY: MATCH (p:Person)-[:ACTED_IN]->(m:Movie) WHERE m.title = 'The Matrix' RETURN p.name"
+            ]
+            graph_schema = get_schema(neo4j_driver, is_enhanced=False)
+            retriever = Text2CypherRetriever(
+                driver=neo4j_driver,
+                llm=llm,  # type: ignore
+                neo4j_schema=graph_schema,
+                examples=examples,
+            )            
         else:
             raise ValueError(f"Unknown retriever type: {retriever_type}")
 

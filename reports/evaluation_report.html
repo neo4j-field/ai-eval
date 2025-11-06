@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <title>GraphRAG Evaluation Report</title>
   <style>
+    .collapsible-panel { margin-bottom: 24px; }
+    .collapsible { background: #e7edf4; color: #1565c0; cursor: pointer; padding: 12px 18px; width: 100%; border: none; text-align: left; outline: none; font-size: 17px; border-radius: 4px; margin-bottom: 0; transition: background 0.2s; }
+    .collapsible.active, .collapsible:hover { background: #d0e2ff; }
+    .content { padding: 0 18px; display: none; overflow: hidden; background: #f8fafc; border-radius: 0 0 4px 4px; }
+    .content img { max-width: 100%; margin: 18px 0; border-radius: 6px; box-shadow: 0 1px 6px #cedbe8; }
     body { font-family: Arial, sans-serif; background: #f8fafc; margin: 0; padding: 0; }
     .container { max-width: 1200px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #e7edf4; padding: 32px; }
     h1 { color: #0d141c; margin-bottom: 24px; }
@@ -13,16 +18,67 @@
     tr:nth-child(even) { background: #f8fafc; }
     .metric { font-weight: bold; color: #1565c0; }
     .improvement { font-weight: bold; color: #0d80f2; }
+    .min-score { color: #d32f2f; font-weight: bold; } /* red */
+    .max-score { color: #388e3c; font-weight: bold; } /* green */
+    .improvement-cell { font-size: 14px; }
   </style>
 </head>
 <body>
   <div class="container">
-  <h1>GraphRAG Evaluation Report</h1>
-  <input type="file" id="jsonFileInput" accept="application/json" />
-  <div id="reportMeta"></div>
-  <div id="reportTable"></div>
+    <h1>GraphRAG Evaluation Report</h1>
+    <input type="file" id="jsonFileInput" accept="application/json" />
+    <div id="reportMeta"></div>
+    <div class="collapsible-panel">
+      <button class="collapsible active" id="summaryToggle">▼ Report Summary</button>
+      <div class="content" id="summaryPanel" style="display:block;"></div>
+    </div>
+    <div class="collapsible-panel">
+      <button class="collapsible" id="chartsToggle">► Charts</button>
+      <div class="content" id="chartsPanel" style="display:none;"></div>
+    </div>
+    <div class="collapsible-panel">
+      <button class="collapsible" id="tableToggle">► Table</button>
+      <div class="content" id="reportTable" style="display:none;"></div>
+    </div>
   </div>
   <script>
+    // Simple Markdown to HTML converter for summary (supports headings, bold, lists)
+    function markdownToHtml(md) {
+      if (!md) return "";
+      let html = md;
+      // Headings
+      html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+      html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+      html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+      // Bold
+      html = html.replace(/\*\*(.*?)\*\*/gim, '<b>$1</b>');
+      // Lists
+      html = html.replace(/^\s*[-*] (.*$)/gim, '<li>$1</li>');
+      // Paragraphs
+      html = html.replace(/\n{2,}/g, '</p><p>');
+      html = '<p>' + html + '</p>';
+      // Wrap <li> in <ul>
+      html = html.replace(/(<li>.*?<\/li>)/gims, '<ul>$1</ul>');
+      return html;
+    }
+
+    function renderSummary(reportJson) {
+      const summary = reportJson.report_summary || "No summary available.";
+      document.getElementById("summaryPanel").innerHTML = markdownToHtml(summary);
+    }
+    function renderCharts(jsonFilePath) {
+      if (!jsonFilePath) return;
+      const fileInput = document.getElementById("jsonFileInput");
+      const file = fileInput.files[0];
+      if (!file) return;
+      const fileName = file.name.replace(/\.json$/i, "");
+      const chartNames = ["_all_metrics_bar_chart.png"];
+      let html = "";
+      chartNames.forEach(name => {
+        html += `<img src="${fileName + name}" alt="${name}" />`;
+      });
+      document.getElementById("chartsPanel").innerHTML = html;
+    }
     function renderMeta(reportJson) {
       const meta = reportJson.metadata;
       let html = `<div style="margin-bottom:24px;font-size:16px;">
@@ -33,10 +89,9 @@
     }
 
     function renderTable(reportJson) {
-      // Assume only two retrievers for improvement calculation
+      // Collect all retriever names
       const retrieverNames = [];
       const metricNames = new Set();
-      // Collect retriever and metric names
       reportJson.report.forEach(q => {
         q.retrievers.forEach(r => {
           if (!retrieverNames.includes(r.name)) retrieverNames.push(r.name);
@@ -46,18 +101,20 @@
         });
       });
       const metrics = Array.from(metricNames);
+
       // Table header
       let html = `<table><thead><tr>
         <th>Question</th>
         <th>Ground Truth</th>
         <th>Metric Name</th>
-        <th>${retrieverNames[0]}</th>
-        <th>${retrieverNames[1]}</th>
-        <th>Improvement (${retrieverNames[1]} vs ${retrieverNames[0]})</th>
+        ${retrieverNames.map(r => `<th>${r}</th>`).join('')}
+        <th>Improvement</th>
       </tr></thead><tbody>`;
+
       // Table rows with rowspan for question and ground truth
       reportJson.report.forEach(q => {
         const numMetrics = metrics.length + 1; // +1 for Response row
+
         // Helper to truncate and add tooltip
         function truncateWithTooltip(text) {
           if (!text) return "-";
@@ -68,55 +125,137 @@
             return `<span title="${safeText.replace(/\"/g, '&quot;')}">${safeText}</span>`;
           }
         }
+
         // Response row first
         html += `<tr>`;
         html += `<td rowspan="${numMetrics}">${truncateWithTooltip(q.question)}</td>`;
         html += `<td rowspan="${numMetrics}">${truncateWithTooltip(q.reference)}</td>`;
         html += `<td class="metric">Response</td>`;
-        // Find response for both retrievers
-        const r1 = q.retrievers.find(r => r.name === retrieverNames[0]);
-        const r2 = q.retrievers.find(r => r.name === retrieverNames[1]);
-        const r1Resp = r1 && r1.answers[0].response ? r1.answers[0].response : "-";
-        const r2Resp = r2 && r2.answers[0].response ? r2.answers[0].response : "-";
-        html += `<td>${truncateWithTooltip(r1Resp)}</td>`;
-        html += `<td>${truncateWithTooltip(r2Resp)}</td>`;
-        html += `<td class="improvement">-</td>`;
+        // Find response for all retrievers
+        let responseCells = [];
+        q.retrievers.forEach(r => {
+          const resp = r.answers[0] && r.answers[0].response ? r.answers[0].response : "-";
+          responseCells.push(`<td>${truncateWithTooltip(resp)}</td>`);
+        });
+        html += responseCells.join('');
+        html += `<td class="improvement-cell">-</td>`;
         html += `</tr>`;
+
         // Metric rows
-        metrics.forEach((metric, idx) => {
-          const r1Score = r1 && r1.answers[0].scores[metric] !== undefined ? r1.answers[0].scores[metric] : "-";
-          const r2Score = r2 && r2.answers[0].scores[metric] !== undefined ? r2.answers[0].scores[metric] : "-";
-          let improvement = "-";
-          if (typeof r1Score === "number" && typeof r2Score === "number" && r1Score !== 0) {
-            improvement = (((r2Score - r1Score) / Math.abs(r1Score)) * 100).toFixed(2) + "%";
-          } else if (typeof r1Score === "number" && typeof r2Score === "number" && r1Score === 0) {
-            improvement = r2Score !== 0 ? "∞" : "0%";
+        metrics.forEach(metric => {
+          // Gather scores for all retrievers for this metric
+          let scores = [];
+          q.retrievers.forEach(r => {
+            const score = r.answers[0] && r.answers[0].scores[metric] !== undefined ? r.answers[0].scores[metric] : "-";
+            scores.push(score);
+          });
+
+          // Find min and max score indices
+          let numericScores = scores.map(s => typeof s === "number" ? s : null);
+          let minScore = Math.min(...numericScores.filter(s => s !== null));
+          let maxScore = Math.max(...numericScores.filter(s => s !== null));
+
+          // Build score cells with color indication
+          let scoreCells = scores.map(s => {
+            if (typeof s === "number") {
+              if (s === minScore && minScore !== maxScore) return `<td class="min-score">${s}</td>`;
+              if (s === maxScore && minScore !== maxScore) return `<td class="max-score">${s}</td>`;
+              return `<td>${s}</td>`;
+            } else {
+              return `<td>-</td>`;
+            }
+          });
+
+          // Improvement logic: show % improvement of max over min, and which retriever is best
+          let improvementText = "-";
+          if (minScore !== maxScore && minScore !== 0 && minScore !== null && maxScore !== null) {
+            let percent = (((maxScore - minScore) / Math.abs(minScore)) * 100).toFixed(2);
+            let bestRetriever = retrieverNames[numericScores.indexOf(maxScore)];
+            improvementText = `<span class="max-score">${bestRetriever}</span> is <b>${percent}%</b> better than <span class="min-score">${retrieverNames[numericScores.indexOf(minScore)]}</span>`;
+          } else if (minScore !== maxScore && minScore === 0 && maxScore !== null) {
+            let bestRetriever = retrieverNames[numericScores.indexOf(maxScore)];
+            improvementText = `<span class="max-score">${bestRetriever}</span> is infinitely better than <span class="min-score">${retrieverNames[numericScores.indexOf(minScore)]}</span>`;
+          } else if (minScore === maxScore && minScore !== null) {
+            improvementText = `<span style="color:#888">All retrievers equal</span>`;
           }
+
           html += `<tr>`;
           html += `<td class="metric">${metric}</td>`;
-          html += `<td>${r1Score}</td>`;
-          html += `<td>${r2Score}</td>`;
-          html += `<td class="improvement">${improvement}</td>`;
+          html += scoreCells.join('');
+          html += `<td class="improvement-cell">${improvementText}</td>`;
           html += `</tr>`;
         });
       });
       html += "</tbody></table>";
       document.getElementById("reportTable").innerHTML = html;
     }
+
     document.getElementById("jsonFileInput").addEventListener("change", function(e) {
       const file = e.target.files[0];
       if (!file) return;
+      // For chart image path
+      const jsonFilePath = file.name;
       const reader = new FileReader();
       reader.onload = function(evt) {
         try {
           const reportJson = JSON.parse(evt.target.result);
           renderMeta(reportJson);
+          renderSummary(reportJson);
+          renderCharts(jsonFilePath);
           renderTable(reportJson);
         } catch (err) {
           document.getElementById("reportTable").innerHTML = "<p style='color:red'>Invalid JSON file.</p>";
         }
       };
       reader.readAsText(file);
+      // Show summary panel, hide others by default
+      document.getElementById("summaryPanel").style.display = "block";
+      document.getElementById("chartsPanel").style.display = "none";
+      document.getElementById("reportTable").style.display = "none";
+      document.getElementById("summaryToggle").classList.add("active");
+      document.getElementById("summaryToggle").innerText = "▼ Report Summary";
+      document.getElementById("chartsToggle").classList.remove("active");
+      document.getElementById("chartsToggle").innerText = "► Charts";
+      document.getElementById("tableToggle").classList.remove("active");
+      document.getElementById("tableToggle").innerText = "► Table";
+      document.getElementById("summaryToggle").addEventListener("click", function() {
+        const panel = document.getElementById("summaryPanel");
+        if (panel.style.display === "block") {
+          panel.style.display = "none";
+          this.classList.remove("active");
+          this.innerText = "► Report Summary";
+        } else {
+          panel.style.display = "block";
+          this.classList.add("active");
+          this.innerText = "▼ Report Summary";
+        }
+      });
+    });
+
+    // Collapsible logic
+    document.getElementById("chartsToggle").addEventListener("click", function() {
+      const panel = document.getElementById("chartsPanel");
+      if (panel.style.display === "block") {
+        panel.style.display = "none";
+        this.classList.remove("active");
+        this.innerText = "► Charts";
+      } else {
+        panel.style.display = "block";
+        this.classList.add("active");
+        this.innerText = "▼ Charts";
+      }
+    });
+    document.getElementById("tableToggle").addEventListener("click", function() {
+      const panel = document.getElementById("reportTable");
+      if (panel.style.display === "block") {
+        panel.style.display = "none";
+        this.classList.remove("active");
+        this.innerText = "► Table";
+      } else {
+        panel.style.display = "block";
+        this.classList.add("active");
+        this.innerText = "▼ Table";
+      }
     });
   </script>
 </body>

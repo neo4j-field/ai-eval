@@ -14,3 +14,4 @@ pydantic_core==2.33.2
 python-dotenv==1.1.1
 ragas[all]
 pytest
+seaborn==0.12.2

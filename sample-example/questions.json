@@ -8,17 +8,26 @@
     {
       "id": "q001",
       "question": "What is TechCorp's annual revenue as of 2024?",
-      "ground_truth": "$4.2 billion"    
+      "ground_truth": "$4.2 billion",
+      "answers": [
+        { "source": "WebSearch", "answer": "$4.0 billion" }
+      ]
     },
     {
       "id": "q002",
       "question": "Who founded TechCorp Inc.?",
-      "ground_truth": "Sarah Chen and Michael Rodriguez founded TechCorp Inc"
+      "ground_truth": "Sarah Chen and Michael Rodriguez founded TechCorp Inc",
+      "answers": [
+        { "source": "WebSearch", "answer": "Sarah Chen, Rodriguez" }
+      ]
     },
     {
       "id": "q003",
       "question": "What is TechCorp's ticker symbol?",
-      "ground_truth": "TECH on NASDAQ"
+      "ground_truth": "TECH on NASDAQ",
+      "answers": [
+        { "source": "WebSearch", "answer": "TECH" }
+      ]
     }
   ]
 }

@@ -4,6 +4,7 @@ import argparse
 from datetime import datetime
 from evaluator import Evaluator
 from dotenv import load_dotenv
+import shutil
 
 process_dir = os.getcwd()
 env_file = os.path.join(process_dir, ".env")
@@ -36,7 +37,7 @@ def main():
     # Compose the output file name
     output_report_path = os.path.join(
         output_dir, f"{output_prefix}_{timestamp}.json"
-    )            
+    )
 
     # Prepare config dictionary for Evaluator.get_evaluator
     config = {
@@ -51,7 +52,18 @@ def main():
     # print("Evaluator instance created successfully.")
     all_results = evaluator.run_evaluation()
     # print(f"All results: {all_results}")
-    print(f"Results have been written to: {output_report_path}")
+
+    # Save evaluation_report.html to output_dir if not present
+    html_template_src = os.path.join("reports", "evaluation_report.html")
+    html_template_dst = os.path.join(output_dir, "evaluation_report.html")
+    if not os.path.exists(html_template_dst):
+        if os.path.exists(html_template_src):
+            shutil.copy(html_template_src, html_template_dst)
+            print(f"Saved report HTML template to: {html_template_dst}")
+        else:
+            print(f"WARNING: evaluation_report.html not found in {process_dir}")
+
+    print(f"✅ Results have been written to: {output_report_path}\n✅ HTML report template is available at: {html_template_dst}")
 
 if __name__ == "__main__":
     main()
